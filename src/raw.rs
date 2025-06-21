@@ -4,24 +4,23 @@ use core::ptr;
 pub const BACKUP_LEN: usize = 16;
 #[cfg(target_arch = "aarch64")]
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
-    // let offset = (hook_fn as isize - target as isize) as i32 / 4;
-    // let branch_binary: i32 = 0b1010_0000_0000_0000_0000_0000_0000_0;
-    // if offset < -branch_binary || offset > 0b1010_1111_1111_1111_1111_1111_11111 {
-    const CODE: [u8; 8] = [
-        0x43, 0x00, 0x00, 0x58, // ldr x3, +0x8
-        0x60, 0x00, 0x1f, 0xd6, // br x3
-    ];
-    const CODE_USIZE: usize = usize::from_ne_bytes(CODE);
-    unsafe {
-        ptr::write(target as *mut [usize; 2], [CODE_USIZE, hook_fn]);
+    let offset = (hook_fn as isize - target as isize) as i32 / 4;
+    let branch_binary: i32 = 0x14000000;
+    if offset < -0x2000000 || offset > 0x1ffffff {
+        const CODE: [u8; 8] = [
+            0x50, 0x00, 0x00, 0x58, // ldr x16, +0x8
+            0x00, 0x02, 0x1F, 0xD6, // br x16
+        ];
+        const CODE_USIZE: usize = usize::from_ne_bytes(CODE);
+        unsafe {
+            ptr::write(target as *mut [usize; 2], [CODE_USIZE, hook_fn]);
+        }
+    } else {
+        let branch_inst: u32 = (branch_binary | (offset & 0x03ffffff)) as u32;
+        unsafe {
+            ptr::write(target as *mut u32, branch_inst);
+        }
     }
-    // } else {
-    //     let branch_inst: u32 =
-    //         (branch_binary | (offset & 0b0000_1111_1111_1111_1111_1111_1111_1)) as u32;
-    //     unsafe {
-    //         ptr::write(target as *mut u32, branch_inst);
-    //     }
-    // }
 }
 #[cfg(target_arch = "arm")]
 fn is_thumb(addr: u32) -> bool {
