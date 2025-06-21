@@ -1,0 +1,8 @@
+[package]
+name = "bhook"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clear-cache = "0.1.2"
+region = "3.0.2"
