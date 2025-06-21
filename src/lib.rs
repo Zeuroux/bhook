@@ -91,16 +91,6 @@ macro_rules! hook_fn {
                 }
             }
             unsafe extern "C" fn mainhook( $($arg_name: $arg_ty),*) -> $ret_type {unsafe {$body }}
-            // unsafe extern "C" fn hook($($arg_name: $arg_ty),*) -> $ret_type {
-            //     mainhook( $($arg_name),*)
-            // }
         }
     };
-
-    (fn $fnname:ident($($arg_name:ident : $arg_ty:ty),*) = $body:expr )  => {
-
-    };
-    // (fn $fnname:ident($($arg_name:ident : $arg_ty:ty),*) { $body:expr })  => {
-
-    // };
 }

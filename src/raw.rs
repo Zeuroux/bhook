@@ -4,13 +4,23 @@ use core::ptr;
 pub const BACKUP_LEN: usize = 16;
 #[cfg(target_arch = "aarch64")]
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
-    unsafe {
+    let offset = (hook_fn as isize - target as isize) as i32 / 4;
+    let branch_binary: i32 = 0b1010_0000_0000_0000_0000_0000_0000_0;
+    if offset < -branch_binary || offset > 0b1010_1111_1111_1111_1111_1111_11111 {
         const CODE: [u8; 8] = [
             0x43, 0x00, 0x00, 0x58, // ldr x3, +0x8
             0x60, 0x00, 0x1f, 0xd6, // br x3
         ];
         const CODE_USIZE: usize = usize::from_ne_bytes(CODE);
-        ptr::write(target as *mut [usize; 2], [CODE_USIZE, hook_fn]);
+        unsafe {
+            ptr::write(target as *mut [usize; 2], [CODE_USIZE, hook_fn]);
+        }
+    } else {
+        let branch_inst: u32 =
+            (branch_binary | (offset & 0b0000_1111_1111_1111_1111_1111_1111_1)) as u32;
+        unsafe {
+            ptr::write(target as *mut u32, branch_inst);
+        }
     }
 }
 #[cfg(target_arch = "arm")]
@@ -39,17 +49,23 @@ pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
         let target_addr = clear_thumb_bit(target_addr);
         let mut target = target_addr as *mut u16;
         if !is_aligned(target_addr) {
-            *target = THUMB_NOOP;
-            target = target.offset(1);
+            unsafe {
+                *target = THUMB_NOOP;
+                target = target.offset(1);
+            }
         }
-        *(target as *mut [u16; 2]) = LDR_PC_PC;
-        *(target.offset(2) as *mut usize) = hook_fn;
+        unsafe {
+            *(target as *mut [u16; 2]) = LDR_PC_PC;
+            *(target.offset(2) as *mut usize) = hook_fn;
+        }
     } else {
         // asm: ldr pc, [pc, -4]
         const CODE: usize = 0xe51ff004;
         let arm_insns = target_addr as *mut usize;
-        *arm_insns = CODE;
-        *arm_insns.offset(1) = hook_fn;
+        unsafe {
+            *arm_insns = CODE;
+            *arm_insns.offset(1) = hook_fn;
+        }
     }
 }
 
