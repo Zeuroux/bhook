@@ -6,7 +6,7 @@ pub const BACKUP_LEN: usize = 16;
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
     let offset = (hook_fn as isize - target as isize) as i32 / 4;
     let branch_binary: i32 = 0x14000000;
-    if offset < -0x2000000 || offset > 0x1ffffff {
+    if !(-0x2000000..=0x1ffffff).contains(&offset) {
         const CODE: [u8; 8] = [
             0x50, 0x00, 0x00, 0x58, // ldr x16, +0x8
             0x00, 0x02, 0x1F, 0xD6, // br x16

@@ -11,16 +11,29 @@ mod raw;
 pub use raw::BACKUP_LEN;
 use raw::hook_impl;
 /// Branch hook a function.
-/// This function will write a basic hook in the memory you give it, \
-/// differently from other hooking libraries, the method is very crude, as its literally \
-/// just a branch instruction to 'hook_fn', this has the benefit of not needing high complexity \
+///
+/// This function will write a basic hook in the memory you give it,
+/// differently from other hooking libraries, the method is very crude, as its literally
+/// just a branch instruction to 'hook_fn', this has the benefit of not needing high complexity
 /// at the cost of not being able to make a trampoline
+///
+/// # Safety
+///
+/// The target function needs to be accesible for writing, also the hook
+/// must have the exact same abi as the target function, as if that is not true
+/// there *will* be undefined behaviour, the target pointer must ideally point to the
+/// start of the target function
 #[inline(always)]
 pub unsafe fn raw_hook(target: *mut u8, hook_fn: usize) {
     unsafe { hook_impl(target, hook_fn) }
 }
 /// Handle memory protection and save backup bytes before doing branch hooking.
 /// You can use 'unsetup_hook' to call the original function using this
+///
+/// # Safety
+///
+/// Same requirements as 'raw_hook' but the target address must be able to be safely
+/// written to by disabling write protection
 pub unsafe fn setup_hook(
     orig_fn: *mut u8,
     hook_fn: *const u8,
@@ -38,7 +51,11 @@ pub unsafe fn setup_hook(
     }
 }
 
-// Handle memory protection and then write back the backup bytes.
+/// Handle memory protection and then write back the backup bytes.
+///
+/// # Safety
+///
+/// Dont copy the backup bytes to somewhere they dont belong, ever
 pub unsafe fn unsetup_hook(
     orig_fn: *mut u8,
     orig_code: [u8; BACKUP_LEN],
