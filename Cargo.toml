@@ -4,5 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-clear-cache = "0.1.2"
-region = "3.0.2"
+clear-cache = {version ="0.1.2", optional = true}
+region = { version = "3.0.2", optional = true }
+
+[features]
+std = ["dep:region"]
+cache_cleaning = ["dep:clear-cache"]
+default = ["std", "cache_cleaning"]

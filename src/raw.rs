@@ -1,4 +1,3 @@
-use core::ptr;
 #[cfg(target_arch = "aarch64")]
 // Magic value: code len (8) + pointer length (8)
 pub const BACKUP_LEN: usize = 16;
@@ -6,19 +5,21 @@ pub const BACKUP_LEN: usize = 16;
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
     let offset = (hook_fn as isize - target as isize) as i32 / 4;
     let branch_binary: i32 = 0x14000000;
-    if !(-0x2000000..=0x1ffffff).contains(&offset) {
+    if (-0x2000000..=0x1ffffff).contains(&offset) {
+        let branch_inst = (branch_binary | (offset & 0x03ffffff)) as u32;
+        unsafe {
+            target.cast::<u32>().write_unaligned(branch_inst);
+        }
+    } else {
         const CODE: [u8; 8] = [
             0x50, 0x00, 0x00, 0x58, // ldr x16, +0x8
             0x00, 0x02, 0x1F, 0xD6, // br x16
         ];
         const CODE_USIZE: usize = usize::from_ne_bytes(CODE);
         unsafe {
-            ptr::write(target as *mut [usize; 2], [CODE_USIZE, hook_fn]);
-        }
-    } else {
-        let branch_inst: u32 = (branch_binary | (offset & 0x03ffffff)) as u32;
-        unsafe {
-            ptr::write(target as *mut u32, branch_inst);
+            target
+                .cast::<[usize; 2]>()
+                .write_unaligned([CODE_USIZE, hook_fn]);
         }
     }
 }
@@ -39,6 +40,9 @@ fn is_aligned(addr: u32) -> bool {
 pub const BACKUP_LEN: usize = 9;
 #[cfg(target_arch = "arm")]
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
+    // Small explanation for the logic in this
+    // in arm, the pointer width is 32bit, which is the same as regular arm instruction width
+    // but thumb is u16
     let target_addr = target as u32;
     if is_thumb(target_addr) {
         // asm: nop
@@ -49,21 +53,21 @@ pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
         let mut target = target_addr as *mut u16;
         if !is_aligned(target_addr) {
             unsafe {
-                *target = THUMB_NOOP;
+                target.write_unaligned(THUMB_NOOP);
                 target = target.offset(1);
             }
         }
         unsafe {
-            *(target as *mut [u16; 2]) = LDR_PC_PC;
-            *(target.offset(2) as *mut usize) = hook_fn;
+            (target as *mut [u16; 2]).write_unaligned(LDR_PC_PC);
+            (target.offset(2) as *mut usize).write_unaligned(hook_fn);
         }
     } else {
         // asm: ldr pc, [pc, -4]
         const CODE: usize = 0xe51ff004;
         let arm_insns = target_addr as *mut usize;
         unsafe {
-            *arm_insns = CODE;
-            *arm_insns.offset(1) = hook_fn;
+            arm_insns.write_unaligned(CODE);
+            arm_insns.offset(1).write_unaligned(hook_fn);
         }
     }
 }
@@ -78,7 +82,7 @@ pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
         0xff, 0xe0, // jmp rax
     ];
     code[2..10].copy_from_slice(&hook_fn.to_ne_bytes());
-    (target as *mut [u8; 12]).write(code);
+    (target as *mut [u8; 12]).write_unaligned(code);
 }
 
 #[cfg(target_arch = "x86")]
@@ -92,5 +96,5 @@ pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
         0xFF, 0xE0, // jmp eax
     ];
     code[1..5].copy_from_slice(&hook_fn.to_ne_bytes());
-    (target as *mut [u8; 5]).write(code);
+    (target as *mut [u8; 5]).write_unaligned(code);
 }
