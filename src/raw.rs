@@ -3,7 +3,7 @@
 pub const BACKUP_LEN: usize = 16;
 #[cfg(target_arch = "aarch64")]
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
-    let offset = (hook_fn as isize - target as isize) as i32 / 4;
+    let offset = target.offset(hook_fn as isize) as i32;
     let branch_binary: i32 = 0x14000000;
     if (-0x2000000..=0x1ffffff).contains(&offset) {
         let branch_inst = (branch_binary | (offset & 0x03ffffff)) as u32;
