@@ -66,7 +66,7 @@ macro_rules! hook_fn {
                     }
                 }
 
-
+            #[allow(dead_code)]
             unsafe fn call_original($($arg_name : $arg_ty), *) -> $ret_type {
                 unsafe {
                     let sus = CONTEXT.as_ref().unwrap();
@@ -75,6 +75,12 @@ macro_rules! hook_fn {
                     let result = original($($arg_name),*);
                     bhook::setup_hook(sus.original, sus.hook).unwrap();
                     result
+                }
+            }
+            unsafe fn self_disable() {
+                unsafe {
+                let sus = CONTEXT.as_ref().unwrap();
+                bhook::unsetup_hook(sus.original, sus.backup).unwrap();
                 }
             }
             unsafe extern "C" fn mainhook( $($arg_name: $arg_ty),*) -> $ret_type {unsafe {$body }}
