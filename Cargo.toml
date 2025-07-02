@@ -6,6 +6,8 @@ readme = "README.md"
 description = "Lightweight hook crate with no_std support that works on x86, x86_64, arm and aarch64"
 repository = "https://github.com/mcbegamerxx954/bhook"
 license = "CC0-1.0"
+categories = ["no-std"]
+keywords= ["hooking", "detour", "function", "nostd", "intercept"]
 
 [dependencies]
 clear-cache = {version ="0.1.2", optional = true}
