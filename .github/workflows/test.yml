@@ -18,7 +18,7 @@ jobs:
           - i686-unknown-linux-gnu
           - aarch64-pc-windows-gnu
           - x86_64-pc-windows-gnu
-        runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
