@@ -1,6 +1,6 @@
 [package]
 name = "bhook"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 readme = "README.md"
 description = "Lightweight hook crate with no_std support that works on x86, x86_64, arm and aarch64"
