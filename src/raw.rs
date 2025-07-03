@@ -96,5 +96,5 @@ pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
         0xFF, 0xE0, // jmp eax
     ];
     code[1..5].copy_from_slice(&hook_fn.to_ne_bytes());
-    (target as *mut [u8; 5]).write_unaligned(code);
+    (target as *mut [u8; 7]).write_unaligned(code);
 }
