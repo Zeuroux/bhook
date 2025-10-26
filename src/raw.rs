@@ -2,24 +2,33 @@
 // Magic value: code len (8) + pointer length (8)
 pub const BACKUP_LEN: usize = 16;
 #[cfg(target_arch = "aarch64")]
-pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
-    let offset = target.offset(hook_fn as isize) as i32;
-    let branch_binary: i32 = 0x14000000;
-    if (-0x2000000..=0x1ffffff).contains(&offset) {
-        let branch_inst = (branch_binary | (offset & 0x03ffffff)) as u32;
-        unsafe {
-            target.cast::<u32>().write_unaligned(branch_inst);
+use core::{ffi::c_void, mem, ptr};
+
+#[cfg(target_arch = "aarch64")]
+extern "C" { #[link_name = "mcpelauncher_patch"] static MCP_PATCH: usize; }
+
+#[cfg(target_arch = "aarch64")]
+#[inline(always)]
+unsafe fn patch(a: *mut c_void, d: *const c_void, s: usize) -> bool {
+    let f = MCP_PATCH as *const ();
+    if f.is_null() { return false; }
+    mem::transmute::<_, extern "C" fn(*mut c_void, *const c_void, usize) -> *mut c_void>(f)(a, d, s);
+    true
+}
+
+#[cfg(target_arch = "aarch64")]
+pub unsafe fn hook_impl(t: *mut u8, h: usize) {
+    let o = h.wrapping_sub(t as usize) as i32;
+    if (-0x2000000..=0x1ffffff).contains(&o) {
+        let b = (0x14000000 | (o & 0x03ffffff)).to_ne_bytes();
+        if !patch(t as _, b.as_ptr() as _, 4) {
+            ptr::write_unaligned(t.cast(), u32::from_ne_bytes(b));
         }
     } else {
-        const CODE: [u8; 8] = [
-            0x50, 0x00, 0x00, 0x58, // ldr x16, +0x8
-            0x00, 0x02, 0x1F, 0xD6, // br x16
-        ];
-        const CODE_USIZE: usize = usize::from_ne_bytes(CODE);
-        unsafe {
-            target
-                .cast::<[usize; 2]>()
-                .write_unaligned([CODE_USIZE, hook_fn]);
+        const C: [u8; 8] = [0x50,0x00,0x00,0x58,0x00,0x02,0x1F,0xD6];
+        let mut x = [0u8;16]; x[..8].copy_from_slice(&C); x[8..].copy_from_slice(&h.to_ne_bytes());
+        if !patch(t as _, x.as_ptr() as _, 16) {
+            ptr::write_unaligned(t.cast(), [usize::from_ne_bytes(C), h]);
         }
     }
 }
