@@ -5,7 +5,7 @@ pub const BACKUP_LEN: usize = 16;
 use core::{ffi::c_void, mem, ptr};
 
 #[cfg(target_arch = "aarch64")]
-extern "C" { #[link_name = "mcpelauncher_patch"] static MCP_PATCH: usize; }
+unsafe extern "C" { #[link_name = "mcpelauncher_patch"] static MCP_PATCH: usize; }
 
 #[cfg(target_arch = "aarch64")]
 #[inline(always)]
