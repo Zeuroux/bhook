@@ -1,19 +1,38 @@
 #[cfg(target_arch = "aarch64")]
-// Magic value: code len (8) + pointer length (8)
-pub const BACKUP_LEN: usize = 16;
+use core::{
+    ffi::c_void,
+    mem,
+    ptr,
+    sync::atomic::{AtomicUsize, Ordering},
+};
+
 #[cfg(target_arch = "aarch64")]
-use core::{ffi::c_void, mem, ptr};
+pub const BACKUP_LEN: usize = 16;
 
 #[cfg(target_arch = "aarch64")]
 unsafe extern "C" { #[link_name = "mcpelauncher_patch"] static MCP_PATCH: usize; }
 
 #[cfg(target_arch = "aarch64")]
-#[inline(always)]
-unsafe fn patch(a: *mut c_void, d: *const c_void, s: usize) -> bool {
-    let f = MCP_PATCH as *const ();
-    if f.is_null() { return false; }
-    mem::transmute::<_, extern "C" fn(*mut c_void, *const c_void, usize) -> *mut c_void>(f)(a, d, s);
-    true
+static PATCH_ADDR_CACHE: AtomicUsize = AtomicUsize::new(0);
+
+#[cfg(target_arch = "aarch64")]
+type PatchFn = extern "C" fn(*mut c_void, *const c_void, usize) -> *mut c_void;
+
+#[cfg(target_arch = "aarch64")]
+fn get_patch_fn() -> Option<PatchFn> {
+    let cached = PATCH_ADDR_CACHE.load(Ordering::Relaxed);
+    if cached != 0 {
+        return if cached == 1 { None } else { unsafe { mem::transmute(cached as *const ()) } };
+    }
+
+    let ptr = unsafe { &MCP_PATCH as *const usize };
+    let addr = ptr as usize;
+    
+    let patch_addr = if addr == 0 { 1 } else { addr };
+
+    PATCH_ADDR_CACHE.store(patch_addr, Ordering::Relaxed);
+
+    if addr == 0 { None } else { unsafe { mem::transmute(addr as *const ()) } }
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -21,17 +40,22 @@ pub unsafe fn hook_impl(t: *mut u8, h: usize) {
     let o = h.wrapping_sub(t as usize) as i32;
     if (-0x2000000..=0x1ffffff).contains(&o) {
         let b = (0x14000000 | (o & 0x03ffffff)).to_ne_bytes();
-        if !patch(t as _, b.as_ptr() as _, 4) {
+        if let Some(f) = get_patch_fn() {
+            f(t.cast(), b.as_ptr().cast(), 4);
+        } else {
             ptr::write_unaligned(t.cast(), u32::from_ne_bytes(b));
         }
     } else {
         const C: [u8; 8] = [0x50,0x00,0x00,0x58,0x00,0x02,0x1F,0xD6];
         let mut x = [0u8;16]; x[..8].copy_from_slice(&C); x[8..].copy_from_slice(&h.to_ne_bytes());
-        if !patch(t as _, x.as_ptr() as _, 16) {
+        if let Some(f) = get_patch_fn() {
+            f(t.cast(), x.as_ptr().cast(), 16);
+        } else {
             ptr::write_unaligned(t.cast(), [usize::from_ne_bytes(C), h]);
         }
     }
 }
+
 #[cfg(target_arch = "arm")]
 fn is_thumb(addr: u32) -> bool {
     addr & 1 != 0
