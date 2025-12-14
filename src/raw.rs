@@ -1,15 +1,19 @@
-#[cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))]
-use core::{ffi::c_void, ptr};
+use core::{ffi::c_void};
 
+#[cfg(target_family = "unix")]
+use core::ptr;
+
+#[cfg(target_family = "unix")]
 unsafe extern "C" {
     unsafe fn dlsym(handle: *mut c_void, symbol: *const u32) -> *mut c_void;
 }
-
+#[cfg(target_family = "unix")]
 type PatchFn = extern "C" fn(*mut c_void, *const c_void, usize) -> *mut c_void;
 
+#[cfg(target_family = "unix")]
 const RTLD_DEFAULT: *mut c_void = ptr::null_mut();
 
-#[cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))]
+#[cfg(target_family = "unix")]
 #[inline(always)]
 unsafe fn patch(a: *mut c_void, d: *const c_void, s: usize) -> bool {
     let symbol_name = b"mcpelauncher_patch\0".as_ptr() as *const u32;
@@ -21,6 +25,11 @@ unsafe fn patch(a: *mut c_void, d: *const c_void, s: usize) -> bool {
     patch_fn(a, d, s);
     
     true
+}
+
+#[cfg(not(target_family = "unix"))]
+fn patch(_: *mut c_void, _: *const c_void, _: usize) -> bool {
+    return false;
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -90,36 +99,36 @@ fn is_aligned(addr: u32) -> bool {
     addr % 4 == 0
 }
 #[cfg(target_arch = "arm")]
-// Magic value: code len (4) + pointer length(4) + align(1)
 pub const BACKUP_LEN: usize = 9;
 #[cfg(target_arch = "arm")]
 pub unsafe fn hook_impl(target: *mut u8, hook_fn: usize) {
-    // Small explanation for the logic in this
-    // in arm, the pointer width is 32bit, which is the same as regular arm instruction width
-    // but thumb is u16
     let target_addr = target as u32;
     if is_thumb(target_addr) {
-        // asm: nop
         const THUMB_NOOP: u16 = 0xbf00;
-        // asm: ldr.w pc, [pc]
         const LDR_PC_PC: [u16; 2] = [0xf8df, 0xf000];
         let target_addr = clear_thumb_bit(target_addr);
         let mut target = target_addr as *mut u16;
         if !is_aligned(target_addr) {
-            unsafe {
+            let noop_bytes = THUMB_NOOP.to_ne_bytes();
+            if !patch(target as _, noop_bytes.as_ptr() as _, 2) {
                 target.write_unaligned(THUMB_NOOP);
-                target = target.offset(1);
             }
+            target = target.offset(1);
         }
-        unsafe {
+        let mut code = [0u8; 8];
+        code[0..4].copy_from_slice(&unsafe { std::mem::transmute::<[u16; 2], [u8; 4]>(LDR_PC_PC) });
+        code[4..8].copy_from_slice(&hook_fn.to_ne_bytes());
+        if !patch(target as _, code.as_ptr() as _, 8) {
             (target as *mut [u16; 2]).write_unaligned(LDR_PC_PC);
             (target.offset(2) as *mut usize).write_unaligned(hook_fn);
         }
     } else {
-        // asm: ldr pc, [pc, -4]
         const CODE: usize = 0xe51ff004;
         let arm_insns = target_addr as *mut usize;
-        unsafe {
+        let mut code = [0u8; 8];
+        code[0..4].copy_from_slice(&CODE.to_ne_bytes());
+        code[4..8].copy_from_slice(&hook_fn.to_ne_bytes());
+        if !patch(arm_insns as _, code.as_ptr() as _, 8) {
             arm_insns.write_unaligned(CODE);
             arm_insns.offset(1).write_unaligned(hook_fn);
         }
