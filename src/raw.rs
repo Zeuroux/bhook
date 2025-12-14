@@ -27,9 +27,6 @@ unsafe fn patch(a: *mut c_void, d: *const c_void, s: usize) -> bool {
 pub const BACKUP_LEN: usize = 16;
 
 #[cfg(target_arch = "aarch64")]
-use core::ptr;
-
-#[cfg(target_arch = "aarch64")]
 pub unsafe fn hook_impl(t: *mut u8, h: usize) {
     let o = h.wrapping_sub(t as usize) as i32;
     if (-0x2000000..=0x1ffffff).contains(&o) {
