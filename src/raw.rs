@@ -1,5 +1,5 @@
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64", target_arch = "x86"))]
-use core::{ffi::c_void};
+use core::{ffi::c_void, ptr};
 
 unsafe extern "C" {
     unsafe fn dlsym(handle: *mut c_void, symbol: *const u32) -> *mut c_void;
